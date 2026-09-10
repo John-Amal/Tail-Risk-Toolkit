@@ -1,4 +1,4 @@
-# tailrisk-mcp
+# Tail-Risk-Toolkit
 
 An MCP server that gives an LLM agent a set of extreme value statistics tools for tail risk: peaks-over-threshold GPD fitting, Value-at-Risk and Expected Shortfall, return levels, threshold-stability diagnostics, and out-of-sample VaR backtesting.
 
@@ -30,7 +30,7 @@ All tools are read-only and side-effect free.
 
 ```bash
 git clone https://github.com/John-Amal/Tail-Risk-Toolkit.git
-cd Tail-Risk-Toolkit.git
+cd Tail-Risk-Toolkit
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
@@ -46,7 +46,7 @@ Add to your client's server configuration (for Claude Desktop, `claude_desktop_c
 {
   "mcpServers": {
     "tailrisk": {
-      "command": "/absolute/path/to/Tail-Risk-Toolkit.git/.venv/bin/python",
+      "command": "/absolute/path/to/Tail-Risk-Toolkit/.venv/bin/python",
       "args": ["-m", "tailrisk_mcp.server"]
     }
   }
