@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tailrisk-mcp — extreme value tools for an agent</title>
+<meta name="description" content="An MCP server that gives an agent real extreme value statistics: GPD tail fits, Value-at-Risk and Expected Shortfall, return levels, and out-of-sample backtests.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep:#12303B; --deep-2:#0C232C; --paper:#E8EBE5; --ink:#10222A;
+  --ochre:#C08A2E; --ochre-lift:#DCA847; --slate:#6E7F86; --rust:#9C4A34;
+  --rule:#C7CEC5; --rule-dark:#28454F; --paper-dim:#5C6A6A;
+  --measure:34rem;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:Spectral,Georgia,serif; font-weight:400;
+  font-size:clamp(1rem,0.96rem + 0.2vw,1.09rem); line-height:1.62;
+}
+h1,h2,h3{font-weight:600; line-height:1.18; letter-spacing:-0.012em; margin:0}
+h1{font-size:clamp(2.2rem,1.5rem + 2.2vw,3.15rem); letter-spacing:-0.028em}
+h2{font-size:clamp(1.55rem,1.25rem + 1.3vw,2.1rem); margin-bottom:.6rem}
+h3{font-size:1.12rem; margin-bottom:.35rem}
+p{margin:0 0 1.05rem}
+a{color:inherit; text-decoration-thickness:1px; text-underline-offset:3px; text-decoration-color:var(--ochre)}
+a:hover{text-decoration-color:currentColor}
+code,kbd,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.86em}
+:focus-visible{outline:2px solid var(--ochre); outline-offset:3px; border-radius:2px}
+
+.wrap{width:min(100% - 2.5rem,72rem); margin-inline:auto}
+.prose{max-width:var(--measure)}
+section{padding-block:clamp(3rem,6vw,5.5rem)}
+section + section{border-top:1px solid var(--rule)}
+
+/* ---------- hero ---------- */
+.hero{background:var(--deep); color:var(--paper); padding-block:clamp(2.2rem,4vw,3.4rem) clamp(2.6rem,5vw,4rem); border:0}
+.hero a{text-decoration-color:var(--ochre-lift)}
+.masthead{display:flex; flex-wrap:wrap; gap:.5rem 1.4rem; align-items:baseline;
+  font-family:"IBM Plex Mono",monospace; font-size:.8rem; color:#9FB3B8; margin-bottom:clamp(2rem,5vw,3.2rem)}
+.masthead b{color:var(--paper); font-weight:500}
+.hero h1{max-width:17ch; text-wrap:balance}
+.hero-lede{max-width:36rem; color:#CBD6D6; font-size:1.12rem; margin-top:1.1rem}
+.hero-grid{display:grid; gap:clamp(1.8rem,4vw,3rem); grid-template-columns:minmax(0,1fr)}
+.hero-grid > *{min-width:0}
+@media(min-width:62rem){ .hero-grid{grid-template-columns:minmax(0,25rem) minmax(0,1fr); align-items:start} }
+
+figure{margin:0}
+.chart-shell{background:var(--deep-2); border:1px solid var(--rule-dark); padding:.9rem .9rem .4rem}
+svg.chart{display:block; width:100%; height:auto}
+.grid-line{stroke:#20404B; stroke-width:1}
+.axis-text{font-family:"IBM Plex Mono",monospace; font-size:10.5px; fill:#8FA5AB}
+.axis-title{font-family:Spectral,serif; font-size:12.5px; fill:#B7C6C8; font-style:italic}
+.series-emp{fill:#9DB4BA; fill-opacity:.85}
+.series-true{stroke:#D6E0E0; stroke-width:1.3; stroke-dasharray:2 4; fill:none}
+.series-gauss{stroke:var(--slate); stroke-width:2; fill:none}
+.series-gpd{stroke:var(--ochre-lift); stroke-width:2.6; fill:none; stroke-linecap:round}
+.marker-line{stroke:#F0EDE4; stroke-width:1; stroke-dasharray:3 3; opacity:.5}
+.marker-stem{stroke-width:1.5}
+.thresh-line{stroke:#5E7D86; stroke-width:1; stroke-dasharray:5 4}
+.thresh-label{font-family:"IBM Plex Mono",monospace; font-size:10px; fill:#8FA5AB}
+
+.readout{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.4rem 1rem; align-items:end; margin-top:1.1rem; max-width:30rem}
+.readout div{min-width:0}
+.readout .k{font-family:"IBM Plex Mono",monospace; font-size:.72rem; color:#9FB3B8; display:block}
+.readout .v{font-family:"IBM Plex Mono",monospace; font-size:1.5rem; font-weight:500; letter-spacing:-.02em; line-height:1.2}
+.v-evt{color:var(--ochre-lift)} .v-gauss{color:#AFC0C4}
+.control{margin-top:1.4rem; max-width:30rem}
+.control label{display:block; font-family:"IBM Plex Mono",monospace; font-size:.78rem; color:#9FB3B8; margin-bottom:.5rem}
+input[type=range]{width:100%; accent-color:var(--ochre-lift); background:transparent}
+.legend{display:flex; flex-wrap:wrap; gap:.9rem 1.3rem; margin-top:.9rem;
+  font-family:"IBM Plex Mono",monospace; font-size:.74rem; color:#9FB3B8}
+.legend span{display:inline-flex; align-items:center; gap:.45rem}
+.swatch{width:16px; height:0; border-top-width:3px; border-top-style:solid; display:inline-block}
+.caption{font-size:.9rem; font-style:italic; color:#9FB3B8; margin-top:.9rem; max-width:44rem}
+
+/* ---------- session walkthrough ---------- */
+.step{display:grid; gap:1.2rem 2.6rem; grid-template-columns:minmax(0,1fr); padding-block:2.2rem}
+.step > *{min-width:0}
+.step + .step{border-top:1px dashed var(--rule)}
+@media(min-width:60rem){ .step{grid-template-columns:minmax(0,26rem) minmax(0,1fr)} }
+.step-n{font-family:"IBM Plex Mono",monospace; font-size:.78rem; color:var(--paper-dim); margin-bottom:.5rem}
+.ask{border-left:2px solid var(--ochre); padding:.15rem 0 .15rem .9rem; font-style:italic; margin:0 0 1rem}
+pre{margin:0; background:var(--deep); color:#DFE7E5; padding:1rem 1.1rem; overflow-x:auto;
+  font-size:.79rem; line-height:1.62; border:1px solid var(--rule-dark)}
+pre .call{color:var(--ochre-lift)}
+pre .key{color:#8FB6C0}
+pre .num{color:#E6D9B8}
+pre .str{color:#BFD3C4}
+pre .cmt{color:#7B929A; font-style:italic}
+.pre-head{display:flex; justify-content:space-between; align-items:center; gap:1rem;
+  background:var(--deep-2); color:#9FB3B8; border:1px solid var(--rule-dark); border-bottom:0;
+  padding:.42rem .8rem; font-family:"IBM Plex Mono",monospace; font-size:.72rem}
+button.copy{font:inherit; color:inherit; background:none; border:1px solid var(--rule-dark);
+  padding:.12rem .5rem; cursor:pointer}
+button.copy:hover{color:var(--paper); border-color:#4E717C}
+
+/* ---------- tables ---------- */
+.table-scroll{overflow-x:auto}
+table{border-collapse:collapse; width:100%; font-family:"IBM Plex Mono",monospace; font-size:.82rem}
+caption{text-align:left; font-family:Spectral,serif; font-style:italic; color:var(--paper-dim);
+  font-size:.92rem; padding-bottom:.7rem}
+th,td{text-align:right; padding:.5rem .8rem; border-bottom:1px solid var(--rule); white-space:nowrap}
+th:first-child,td:first-child{text-align:left; padding-left:0}
+thead th{font-weight:500; color:var(--paper-dim); border-bottom:1px solid var(--ink)}
+tbody tr:hover{background:#DFE4DC}
+td.evt{color:#8A6215; font-weight:500}
+td.off{color:var(--slate)}
+.pass{color:#2F6046} .fail{color:var(--rust)}
+
+/* ---------- tool list ---------- */
+.tools{display:grid; gap:1.6rem 2.4rem; grid-template-columns:minmax(0,1fr); margin-top:1.5rem}
+@media(min-width:48rem){ .tools{grid-template-columns:1fr 1fr} }
+.tool h3{font-family:"IBM Plex Mono",monospace; font-size:.92rem; font-weight:500; color:#8A6215}
+.tool p{margin:0; font-size:.96rem}
+
+.two-col{display:grid; gap:1.4rem 3rem; grid-template-columns:minmax(0,1fr)}
+.two-col > *{min-width:0}
+@media(min-width:56rem){ .two-col{grid-template-columns:1fr 1fr} }
+.note{border-left:2px solid var(--rule); padding-left:1rem; color:var(--paper-dim); font-size:.95rem}
+ul{padding-left:1.1rem; margin:0 0 1.05rem}
+li{margin-bottom:.5rem}
+.eq{font-style:italic; text-align:center; padding:1.1rem 0; font-size:1.06rem}
+.eq b{font-style:normal; font-weight:400; font-family:"IBM Plex Mono",monospace; font-size:.9em}
+
+footer{background:var(--deep); color:#9FB3B8; padding-block:3rem; font-size:.9rem}
+footer a{color:var(--paper)}
+footer .wrap{display:flex; flex-wrap:wrap; gap:1rem 2.5rem; justify-content:space-between; align-items:baseline}
+
+@media(max-width:48rem){
+  .axis-text{font-size:15px} .axis-title{font-size:17px} .thresh-label{font-size:14px}
+  .series-emp{r:3.2}
+}
+@media(prefers-reduced-motion:no-preference){
+  .draw{stroke-dasharray:var(--len); stroke-dashoffset:var(--len); animation:draw 1.5s cubic-bezier(.22,.61,.36,1) forwards}
+  .fade{opacity:0; animation:fade .9s ease-out .75s forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  @keyframes fade{to{opacity:1}}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="masthead">
+      <b>tailrisk-mcp</b>
+      <span>extreme value statistics over the Model Context Protocol</span>
+      <span><a href="https://github.com/John-Amal/tailrisk-mcp">github.com/John-Amal/tailrisk-mcp</a></span>
+    </div>
+
+    <div class="hero-grid">
+      <div>
+        <h1>Everything worth knowing is past the last data point.</h1>
+        <p class="hero-lede">Six tools that let an agent fit a tail, price the far end of it,
+          and check whether the answer survives a backtest — instead of producing a
+          plausible number.</p>
+        <div class="control">
+          <label for="conf">Confidence level <span id="conf-label">99.9%</span></label>
+          <input id="conf" type="range" min="0" max="100" value="66" step="1"
+                 aria-describedby="readout-desc">
+        </div>
+        <div class="readout" id="readout-desc">
+          <div><span class="k">EVT</span><span class="v v-evt" id="r-evt">—</span></div>
+          <div><span class="k">Gaussian</span><span class="v v-gauss" id="r-gauss">—</span></div>
+          <div><span class="k">understated by</span><span class="v v-evt" id="r-gap">—</span></div>
+        </div>
+      </div>
+
+      <figure>
+        <div class="chart-shell">
+          <svg class="chart" id="tailchart" viewBox="0 0 720 400" role="img"
+               aria-label="Survival curve on logarithmic axes. The fitted generalised Pareto tail tracks the true distribution far beyond the observed data, while the Gaussian curve falls away sharply."></svg>
+        </div>
+        <div class="legend">
+          <span><i class="swatch" style="border-color:#DCA847"></i>fitted GPD tail</span>
+          <span><i class="swatch" style="border-color:#6E7F86"></i>Gaussian</span>
+          <span><i class="swatch" style="border-color:#D6E0E0; border-top-style:dashed"></i>true distribution</span>
+          <span><i class="swatch" style="border-color:#7E949A; border-top-width:0; width:7px; height:7px; border-radius:50%; background:#7E949A"></i>observations</span>
+        </div>
+        <figcaption class="caption">5,000 draws from a Student-t with 4 degrees of freedom.
+          The observations stop just past 11; the questions worth asking start further right.</figcaption>
+      </figure>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="prose">
+    <h2>A flood and a portfolio loss have the same mathematics</h2>
+    <p>Ask a hydrologist for a 100-year flood level and a risk manager for a 99% Value-at-Risk
+      and you get the same object: a quantile of a distribution fitted to the few observations
+      that exceeded a high threshold. Only the vocabulary differs.</p>
+    <p>Peaks-over-threshold modelling makes that concrete. Take everything above a threshold
+      <code>u</code>, fit a generalised Pareto distribution to the excesses, and the tail becomes</p>
+    <p class="eq"><b>P(X &gt; z) = ζ<sub>u</sub> · [1 + ξ (z − u) / σ]<sup>−1/ξ</sup></b></p>
+    <p>Invert it at <code>1 − q</code> and you have Value-at-Risk. Invert it at <code>1/T</code>
+      and you have a return level. One estimator, two professions. This toolkit hands both to
+      an agent, along with the diagnostics that decide whether the fit deserves to be trusted.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="prose">
+      <h2>A session, end to end</h2>
+      <p>Four questions, four tool calls. The output below is real — every figure on this page
+        comes from running the toolkit on the sample in the chart above.</p>
+    </div>
+
+    <div class="step">
+      <div>
+        <p class="step-n">First</p>
+        <h3>Is the threshold defensible?</h3>
+        <p class="ask">“Before we trust any tail estimate, check whether the fit is stable.”</p>
+        <p>Threshold choice is the one genuinely subjective step in a POT analysis, so the
+          toolkit makes an agent confront it first. If the shape parameter drifts as the
+          threshold rises, the fit has not reached the regime where the theory applies.
+          Here it holds to within 0.10 across the sweep.</p>
+      </div>
+      <div>
+        <div class="pre-head"><span>tailrisk_threshold_stability</span><button class="copy" type="button">copy</button></div>
+        <pre><code id="code-scan"></code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div>
+        <p class="step-n">Then</p>
+        <h3>How heavy is the tail?</h3>
+        <p class="ask">“Fit the tail and tell me what the shape parameter means.”</p>
+        <p>The shape parameter ξ is the headline. Above zero the tail is unbounded and no
+          amount of history reveals the worst case; below zero there is a finite ceiling.
+          At <span id="inline-shape">—</span> this sample is heavy-tailed, which is the
+          formal reason a normal model will understate it.</p>
+      </div>
+      <div>
+        <div class="pre-head"><span>tailrisk_fit_gpd</span><button class="copy" type="button">copy</button></div>
+        <pre><code id="code-fit"></code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div>
+        <p class="step-n">Then</p>
+        <h3>What is the loss at the far end?</h3>
+        <p class="ask">“Give me the 99.9% VaR and Expected Shortfall, and show me what a normal
+          assumption would have said.”</p>
+        <p>Three estimates come back together, because the gap between them is the answer.
+          Historical simulation cannot exceed the largest loss ever observed, so it stops
+          working exactly where the question gets interesting. The Gaussian figure is the
+          one that gets people into trouble.</p>
+      </div>
+      <div>
+        <div class="pre-head"><span>tailrisk_var_es</span><button class="copy" type="button">copy</button></div>
+        <pre><code id="code-var"></code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div>
+        <p class="step-n">Finally</p>
+        <h3>Does the model hold up out of sample?</h3>
+        <p class="ask">“Backtest it. Would a regulator accept this?”</p>
+        <p>Every forecast is fitted on trailing data only, then compared with the next realised
+          loss. The Kupiec test asks whether breaches happen at the right rate; the
+          Christoffersen test asks whether they arrive independently rather than in clusters.
+          Passing the first and failing the second is the signature of a model that reacts too
+          slowly to volatility.</p>
+      </div>
+      <div>
+        <div class="pre-head"><span>tailrisk_backtest_var</span><button class="copy" type="button">copy</button></div>
+        <pre><code id="code-bt"></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="prose">
+      <h2>Where the methods separate</h2>
+      <p>The same sample, priced five ways. The reference column is the analytic quantile of
+        the distribution the data actually came from, so the error is measurable rather than
+        a matter of opinion.</p>
+    </div>
+    <div class="table-scroll">
+      <table id="levels-table">
+        <caption>Loss quantiles by method, against the true value. Sample of 5,000; the largest
+          observed loss was <span id="sample-max">—</span>.</caption>
+        <thead><tr>
+          <th>Confidence</th><th>Reference</th><th>EVT</th><th>EVT error</th>
+          <th>Historical</th><th>Gaussian</th><th>Gaussian error</th><th>EVT shortfall</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="prose" style="margin-top:1.8rem">
+      <p>At the 1-in-10,000 level the extreme value estimate lands within a couple of percent
+        of the truth. The Gaussian estimate misses by more than half — not because it is
+        badly implemented, but because a normal distribution has no mechanism for a loss
+        that size.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="prose">
+      <h2>The backtest is the part that settles it</h2>
+      <p>Model comparison on estimated numbers is arguable. Model comparison on realised
+        breaches is not. Each model forecast a 99% VaR on 750 trailing observations, 2,250
+        times, and was scored on how often the next loss exceeded it.</p>
+    </div>
+    <div class="table-scroll">
+      <table id="bt-table">
+        <caption>Out-of-sample breaches at 99% confidence. Expected rate 1.0%.</caption>
+        <thead><tr>
+          <th>Method</th><th>Breaches</th><th>Rate</th><th>Kupiec p</th>
+          <th>Christoffersen p</th><th>Verdict</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="prose">
+      <h2>The six tools</h2>
+      <p>All read-only and side-effect free. A series arrives inline in the conversation or
+        gets read from a local CSV; nothing is written back.</p>
+    </div>
+    <div class="tools">
+      <div class="tool">
+        <h3>tailrisk_fit_gpd</h3>
+        <p>Fits a generalised Pareto distribution to threshold exceedances and reports the
+          shape, scale and exceedance count, with a plain reading of what the shape implies.</p>
+      </div>
+      <div class="tool">
+        <h3>tailrisk_var_es</h3>
+        <p>Value-at-Risk and Expected Shortfall by extreme value theory, historical simulation
+          and a Gaussian baseline, returned side by side with the ratio between them.</p>
+      </div>
+      <div class="tool">
+        <h3>tailrisk_return_level</h3>
+        <p>The level exceeded once per return period, with the equivalent VaR confidence, for
+          when the question arrives as a 1-in-N event rather than a percentage.</p>
+      </div>
+      <div class="tool">
+        <h3>tailrisk_backtest_var</h3>
+        <p>Rolling-window, strictly out-of-sample backtest with Kupiec, Christoffersen and
+          conditional coverage statistics, plus a verdict in words.</p>
+      </div>
+      <div class="tool">
+        <h3>tailrisk_threshold_stability</h3>
+        <p>Refits across candidate thresholds so the agent can see whether the estimate is in
+          the asymptotic regime before quoting a number from it.</p>
+      </div>
+      <div class="tool">
+        <h3>tailrisk_load_csv_series</h3>
+        <p>Reads one numeric column from a local file, counting the rows it had to skip so
+          data quality stays visible rather than silently absorbed.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="prose"><h2>Run it</h2>
+      <p>Python 3.10 or newer, and version 2 of the MCP SDK.</p>
+    </div>
+    <div class="two-col" style="margin-top:1.4rem">
+      <div>
+        <div class="pre-head"><span>install</span><button class="copy" type="button">copy</button></div>
+<pre><code>git clone https://github.com/John-Amal/tailrisk-mcp.git
+cd tailrisk-mcp
+python -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -e ".[dev]"
+pytest</code></pre>
+        <p class="note" style="margin-top:1rem">The suite simulates from distributions with known
+          tails and checks the estimators recover them, so a pass means the maths is right,
+          not merely that the code ran.</p>
+      </div>
+      <div>
+        <div class="pre-head"><span>connect an MCP client</span><button class="copy" type="button">copy</button></div>
+<pre><code>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"tailrisk"</span>: {
+      <span class="key">"command"</span>: <span class="str">"/path/to/tailrisk-mcp/.venv/bin/python"</span>,
+      <span class="key">"args"</span>: [<span class="str">"-m"</span>, <span class="str">"tailrisk_mcp.server"</span>]
+    }
+  }
+}</code></pre>
+        <p class="note" style="margin-top:1rem">The server speaks stdio. Switch the transport to
+          <code>streamable-http</code> in <code>server.py</code> to run it remotely.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="prose">
+    <h2>What it does not do</h2>
+    <ul>
+      <li>Observations are treated as independent and identically distributed. Real returns
+        cluster in volatility, so a production version would filter with a GARCH model and fit
+        the tail to standardised residuals, following McNeil and Frey. This one fits the raw
+        series.</li>
+      <li>Parameter uncertainty is not propagated. There are no confidence intervals on VaR,
+        Expected Shortfall or return levels; a profile likelihood or a bootstrap over the
+        exceedances would be the next addition.</li>
+      <li>Nothing here is multivariate, so portfolio aggregation across dependent risk factors
+        is out of scope.</li>
+    </ul>
+    <p>Each of these is a known gap rather than a discovered one, which is the only honest way
+      to ship a statistical tool.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <a href="https://github.com/John-Amal">Amal John</a> · MIT licensed</span>
+    <span><a href="https://github.com/John-Amal/tailrisk-mcp">Source on GitHub</a></span>
+  </div>
+</footer>
+
+<script>
+const DATA = {"fit":{"threshold":2.17452,"shape":0.1979,"scale":0.90507,"n_observations":5000,"n_exceedances":250,"exceedance_rate":0.05,"log_likelihood":-274.53623},"emp":[{"x":11.6398,"p":0.0002},{"x":10.7589,"p":0.0004},{"x":9.4344,"p":0.0006},{"x":9.3723,"p":0.0008},{"x":8.9076,"p":0.001},{"x":8.5061,"p":0.0012},{"x":8.267,"p":0.0014},{"x":7.1338,"p":0.0016},{"x":6.7215,"p":0.0018},{"x":6.3424,"p":0.002},{"x":6.2613,"p":0.0022},{"x":6.18,"p":0.0024},{"x":5.8736,"p":0.0026},{"x":5.8591,"p":0.0028},{"x":5.7037,"p":0.003},{"x":5.5918,"p":0.0032},{"x":5.365,"p":0.0034},{"x":5.0916,"p":0.0036},{"x":5.0476,"p":0.0038},{"x":4.9262,"p":0.004},{"x":4.9023,"p":0.0042},{"x":4.8464,"p":0.0044},{"x":4.7641,"p":0.0046},{"x":4.7544,"p":0.0048},{"x":4.7315,"p":0.005},{"x":4.7145,"p":0.0052},{"x":4.6075,"p":0.0054},{"x":4.598,"p":0.0056},{"x":4.5087,"p":0.0058},{"x":4.4946,"p":0.006},{"x":4.4724,"p":0.0062},{"x":4.4466,"p":0.0064},{"x":4.4247,"p":0.0066},{"x":4.4138,"p":0.0068},{"x":4.3111,"p":0.007},{"x":4.3057,"p":0.0072},{"x":4.2233,"p":0.0074},{"x":4.1828,"p":0.0076},{"x":4.1771,"p":0.0078},{"x":4.1521,"p":0.008},{"x":4.1147,"p":0.0082},{"x":4.0692,"p":0.0084},{"x":3.9792,"p":0.0086},{"x":3.9423,"p":0.0088},{"x":3.9273,"p":0.009},{"x":3.923,"p":0.0092},{"x":3.9224,"p":0.0094},{"x":3.9047,"p":0.0096},{"x":3.8559,"p":0.0098},{"x":3.8195,"p":0.01},{"x":3.8188,"p":0.0102},{"x":3.8183,"p":0.0104},{"x":3.7536,"p":0.0106},{"x":3.7201,"p":0.0108},{"x":3.71,"p":0.011},{"x":3.7035,"p":0.0112},{"x":3.7029,"p":0.0114},{"x":3.6874,"p":0.0116},{"x":3.65,"p":0.0118},{"x":3.6474,"p":0.012},{"x":3.6383,"p":0.0122},{"x":3.6131,"p":0.0124},{"x":3.577,"p":0.0126},{"x":3.5721,"p":0.0128},{"x":3.5656,"p":0.013},{"x":3.5623,"p":0.0132},{"x":3.5417,"p":0.0134},{"x":3.5139,"p":0.0136},{"x":3.5117,"p":0.0138},{"x":3.5055,"p":0.014},{"x":3.4169,"p":0.0142},{"x":3.3925,"p":0.0144},{"x":3.3607,"p":0.0146},{"x":3.3588,"p":0.0148},{"x":3.3445,"p":0.015},{"x":3.3187,"p":0.0152},{"x":3.3011,"p":0.0154},{"x":3.296,"p":0.0156},{"x":3.2729,"p":0.0158},{"x":3.2655,"p":0.016},{"x":3.2483,"p":0.0162},{"x":3.2424,"p":0.0164},{"x":3.2262,"p":0.0166},{"x":3.1979,"p":0.0168},{"x":3.1968,"p":0.017},{"x":3.1962,"p":0.0172},{"x":3.1879,"p":0.0174},{"x":3.1852,"p":0.0176},{"x":3.1611,"p":0.0178},{"x":3.1511,"p":0.018},{"x":3.1402,"p":0.0182},{"x":3.1341,"p":0.0184},{"x":3.131,"p":0.0186},{"x":3.1288,"p":0.0188},{"x":3.0758,"p":0.019},{"x":3.0732,"p":0.0192},{"x":3.0702,"p":0.0194},{"x":3.0686,"p":0.0196},{"x":3.0641,"p":0.0198},{"x":3.0556,"p":0.02},{"x":3.0478,"p":0.0202},{"x":3.0467,"p":0.0204},{"x":3.0451,"p":0.0206},{"x":3.0353,"p":0.0208},{"x":3.0326,"p":0.021},{"x":3.0265,"p":0.0212},{"x":2.9945,"p":0.0214},{"x":2.9784,"p":0.0216},{"x":2.9653,"p":0.0218},{"x":2.9522,"p":0.022},{"x":2.9306,"p":0.0222},{"x":2.927,"p":0.0224},{"x":2.9105,"p":0.0226},{"x":2.9082,"p":0.0228},{"x":2.8984,"p":0.023},{"x":2.8871,"p":0.0232},{"x":2.8842,"p":0.0234},{"x":2.8813,"p":0.0236},{"x":2.8812,"p":0.0238},{"x":2.8758,"p":0.024},{"x":2.8727,"p":0.0242},{"x":2.8601,"p":0.0244},{"x":2.8504,"p":0.0246},{"x":2.8455,"p":0.0248},{"x":2.8405,"p":0.025},{"x":2.8332,"p":0.0252},{"x":2.828,"p":0.0254},{"x":2.8276,"p":0.0256},{"x":2.8157,"p":0.0258},{"x":2.815,"p":0.026},{"x":2.8059,"p":0.0262},{"x":2.8016,"p":0.0264},{"x":2.7916,"p":0.0266},{"x":2.7777,"p":0.0268},{"x":2.7735,"p":0.027},{"x":2.7726,"p":0.0272},{"x":2.7644,"p":0.0274},{"x":2.7571,"p":0.0276},{"x":2.7525,"p":0.0278},{"x":2.7518,"p":0.028},{"x":2.7501,"p":0.0282},{"x":2.7353,"p":0.0284},{"x":2.7313,"p":0.0286},{"x":2.7292,"p":0.0288},{"x":2.7243,"p":0.029},{"x":2.7234,"p":0.0292},{"x":2.7231,"p":0.0294},{"x":2.7077,"p":0.0296},{"x":2.6991,"p":0.0298},{"x":2.6953,"p":0.03},{"x":2.6948,"p":0.0302},{"x":2.6881,"p":0.0304},{"x":2.6787,"p":0.0306},{"x":2.6656,"p":0.0308},{"x":2.6582,"p":0.031},{"x":2.653,"p":0.0312},{"x":2.6527,"p":0.0314},{"x":2.6468,"p":0.0316},{"x":2.645,"p":0.0318},{"x":2.6442,"p":0.032},{"x":2.6325,"p":0.0322},{"x":2.6319,"p":0.0324},{"x":2.6308,"p":0.0326},{"x":2.6201,"p":0.0328},{"x":2.6164,"p":0.033},{"x":2.6159,"p":0.0332},{"x":2.6,"p":0.0334},{"x":2.5906,"p":0.0336},{"x":2.5847,"p":0.0338},{"x":2.5696,"p":0.034},{"x":2.5655,"p":0.0342},{"x":2.5635,"p":0.0344},{"x":2.5504,"p":0.0346},{"x":2.5416,"p":0.0348},{"x":2.5411,"p":0.035},{"x":2.5321,"p":0.0352},{"x":2.5213,"p":0.0354},{"x":2.5212,"p":0.0356},{"x":2.5198,"p":0.0358},{"x":2.5195,"p":0.036},{"x":2.5155,"p":0.0362},{"x":2.5141,"p":0.0364},{"x":2.5134,"p":0.0366},{"x":2.4856,"p":0.0368},{"x":2.4816,"p":0.037},{"x":2.4783,"p":0.0372},{"x":2.46,"p":0.0374},{"x":2.4566,"p":0.0376},{"x":2.4552,"p":0.0378},{"x":2.4529,"p":0.038},{"x":2.4488,"p":0.0382},{"x":2.4382,"p":0.0384},{"x":2.4361,"p":0.0386},{"x":2.4357,"p":0.0388},{"x":2.4356,"p":0.039},{"x":2.4213,"p":0.0392},{"x":2.4112,"p":0.0394},{"x":2.4028,"p":0.0396},{"x":2.4011,"p":0.0398},{"x":2.3978,"p":0.04},{"x":2.389,"p":0.0402},{"x":2.3865,"p":0.0404},{"x":2.3865,"p":0.0406},{"x":2.3851,"p":0.0408},{"x":2.3848,"p":0.041},{"x":2.3775,"p":0.0412},{"x":2.3764,"p":0.0414},{"x":2.3746,"p":0.0416},{"x":2.3719,"p":0.0418},{"x":2.3712,"p":0.042},{"x":2.3625,"p":0.0422},{"x":2.3623,"p":0.0424},{"x":2.3536,"p":0.0426},{"x":2.3527,"p":0.0428},{"x":2.3477,"p":0.043},{"x":2.347,"p":0.0432},{"x":2.3456,"p":0.0434},{"x":2.3442,"p":0.0436},{"x":2.3374,"p":0.0438},{"x":2.3352,"p":0.044},{"x":2.3231,"p":0.0442},{"x":2.3082,"p":0.0444},{"x":2.3068,"p":0.0446},{"x":2.3032,"p":0.0448},{"x":2.2919,"p":0.045},{"x":2.2838,"p":0.0452},{"x":2.2741,"p":0.0454},{"x":2.2669,"p":0.0456},{"x":2.2643,"p":0.0458},{"x":2.2616,"p":0.046},{"x":2.2578,"p":0.0462},{"x":2.2574,"p":0.0464},{"x":2.2554,"p":0.0466},{"x":2.253,"p":0.0468},{"x":2.2505,"p":0.047},{"x":2.2431,"p":0.0472},{"x":2.2426,"p":0.0474},{"x":2.2372,"p":0.0476},{"x":2.2344,"p":0.0478},{"x":2.2296,"p":0.048},{"x":2.2242,"p":0.0482},{"x":2.2024,"p":0.0484},{"x":2.2024,"p":0.0486},{"x":2.1939,"p":0.0488},{"x":2.1905,"p":0.049},{"x":2.1798,"p":0.0492},{"x":2.1791,"p":0.0494},{"x":2.1784,"p":0.0496},{"x":2.1774,"p":0.0498},{"x":2.1765,"p":0.05},{"x":2.1744,"p":0.0502},{"x":2.1738,"p":0.0504},{"x":2.1676,"p":0.0506},{"x":2.1655,"p":0.0508},{"x":2.1603,"p":0.051},{"x":2.1593,"p":0.0512},{"x":2.1577,"p":0.0514},{"x":2.1511,"p":0.0516},{"x":2.1508,"p":0.0518},{"x":2.1483,"p":0.052},{"x":2.1478,"p":0.0522},{"x":2.143,"p":0.0524},{"x":2.1407,"p":0.0526},{"x":2.1312,"p":0.0528},{"x":2.1263,"p":0.053},{"x":2.1239,"p":0.0532},{"x":2.1202,"p":0.0534},{"x":2.115,"p":0.0536},{"x":2.1113,"p":0.0538},{"x":2.1084,"p":0.054},{"x":2.1074,"p":0.0542},{"x":2.1042,"p":0.0544},{"x":2.1013,"p":0.0546},{"x":2.0995,"p":0.0548},{"x":2.0875,"p":0.055},{"x":2.0851,"p":0.0552},{"x":2.0846,"p":0.0554},{"x":2.0803,"p":0.0556},{"x":2.0776,"p":0.0558},{"x":2.0631,"p":0.056},{"x":2.0614,"p":0.0562},{"x":2.057,"p":0.0564},{"x":2.0555,"p":0.0566},{"x":2.0553,"p":0.0568},{"x":2.0535,"p":0.057},{"x":2.0497,"p":0.0572},{"x":2.0433,"p":0.0574},{"x":2.0423,"p":0.0576},{"x":2.0377,"p":0.0578},{"x":2.0375,"p":0.058},{"x":2.0347,"p":0.0582},{"x":2.0318,"p":0.0584},{"x":2.0273,"p":0.0586},{"x":2.0245,"p":0.0588},{"x":2.0234,"p":0.059},{"x":2.0213,"p":0.0592},{"x":2.0208,"p":0.0594},{"x":2.0176,"p":0.0596},{"x":2.0165,"p":0.0598},{"x":2.0157,"p":0.06}],"gpd":[{"x":2.1745,"p":0.05},{"x":2.2668,"p":0.0451997},{"x":2.3591,"p":0.0409411},{"x":2.4513,"p":0.03715429},{"x":2.5436,"p":0.03377947},{"x":2.6359,"p":0.03076534},{"x":2.7281,"p":0.02806775},{"x":2.8204,"p":0.02564865},{"x":2.9127,"p":0.0234751},{"x":3.0049,"p":0.02151853},{"x":3.0972,"p":0.01975412},{"x":3.1895,"p":0.01816023},{"x":3.2818,"p":0.01671797},{"x":3.374,"p":0.01541078},{"x":3.4663,"p":0.01422415},{"x":3.5586,"p":0.01314533},{"x":3.6508,"p":0.01216306},{"x":3.7431,"p":0.01126743},{"x":3.8354,"p":0.01044966},{"x":3.9276,"p":0.00970198},{"x":4.0199,"p":0.00901748},{"x":4.1122,"p":0.00839004},{"x":4.2044,"p":0.00781417},{"x":4.2967,"p":0.00728502},{"x":4.389,"p":0.00679822},{"x":4.4813,"p":0.00634988},{"x":4.5735,"p":0.0059365},{"x":4.6658,"p":0.00555494},{"x":4.7581,"p":0.00520239},{"x":4.8503,"p":0.00487631},{"x":4.9426,"p":0.00457441},{"x":5.0349,"p":0.00429463},{"x":5.1271,"p":0.0040351},{"x":5.2194,"p":0.00379414},{"x":5.3117,"p":0.00357021},{"x":5.404,"p":0.00336193},{"x":5.4962,"p":0.00316804},{"x":5.5885,"p":0.00298739},{"x":5.6808,"p":0.00281894},{"x":5.773,"p":0.00266175},{"x":5.8653,"p":0.00251494},{"x":5.9576,"p":0.00237772},{"x":6.0498,"p":0.00224938},{"x":6.1421,"p":0.00212925},{"x":6.2344,"p":0.00201672},{"x":6.3267,"p":0.00191124},{"x":6.4189,"p":0.0018123},{"x":6.5112,"p":0.00171944},{"x":6.6035,"p":0.00163222},{"x":6.6957,"p":0.00155024},{"x":6.788,"p":0.00147315},{"x":6.8803,"p":0.00140061},{"x":6.9725,"p":0.0013323},{"x":7.0648,"p":0.00126795},{"x":7.1571,"p":0.00120728},{"x":7.2493,"p":0.00115006},{"x":7.3416,"p":0.00109606},{"x":7.4339,"p":0.00104506},{"x":7.5262,"p":0.00099689},{"x":7.6184,"p":0.00095135},{"x":7.7107,"p":0.00090827},{"x":7.803,"p":0.00086752},{"x":7.8952,"p":0.00082893},{"x":7.9875,"p":0.00079239},{"x":8.0798,"p":0.00075775},{"x":8.172,"p":0.00072492},{"x":8.2643,"p":0.00069377},{"x":8.3566,"p":0.00066422},{"x":8.4489,"p":0.00063615},{"x":8.5411,"p":0.0006095},{"x":8.6334,"p":0.00058418},{"x":8.7257,"p":0.0005601},{"x":8.8179,"p":0.0005372},{"x":8.9102,"p":0.00051542},{"x":9.0025,"p":0.00049469},{"x":9.0947,"p":0.00047494},{"x":9.187,"p":0.00045613},{"x":9.2793,"p":0.00043821},{"x":9.3715,"p":0.00042113},{"x":9.4638,"p":0.00040484},{"x":9.5561,"p":0.00038929},{"x":9.6484,"p":0.00037446},{"x":9.7406,"p":0.0003603},{"x":9.8329,"p":0.00034677},{"x":9.9252,"p":0.00033385},{"x":10.0174,"p":0.0003215},{"x":10.1097,"p":0.00030969},{"x":10.202,"p":0.0002984},{"x":10.2942,"p":0.0002876},{"x":10.3865,"p":0.00027727},{"x":10.4788,"p":0.00026737},{"x":10.5711,"p":0.0002579},{"x":10.6633,"p":0.00024883},{"x":10.7556,"p":0.00024013},{"x":10.8479,"p":0.0002318},{"x":10.9401,"p":0.00022381},{"x":11.0324,"p":0.00021615},{"x":11.1247,"p":0.0002088},{"x":11.2169,"p":0.00020174},{"x":11.3092,"p":0.00019498},{"x":11.4015,"p":0.00018848},{"x":11.4938,"p":0.00018224},{"x":11.586,"p":0.00017624},{"x":11.6783,"p":0.00017048},{"x":11.7706,"p":0.00016494},{"x":11.8628,"p":0.00015962},{"x":11.9551,"p":0.0001545},{"x":12.0474,"p":0.00014958},{"x":12.1396,"p":0.00014485},{"x":12.2319,"p":0.00014029},{"x":12.3242,"p":0.0001359},{"x":12.4164,"p":0.00013168},{"x":12.5087,"p":0.00012761},{"x":12.601,"p":0.00012369},{"x":12.6933,"p":0.00011992},{"x":12.7855,"p":0.00011628},{"x":12.8778,"p":0.00011278},{"x":12.9701,"p":0.0001094},{"x":13.0623,"p":0.00010614},{"x":13.1546,"p":0.00010299},{"x":13.2469,"p":9.996e-05},{"x":13.3391,"p":9.704e-05},{"x":13.4314,"p":9.421e-05},{"x":13.5237,"p":9.148e-05},{"x":13.616,"p":8.885e-05},{"x":13.7082,"p":8.631e-05},{"x":13.8005,"p":8.385e-05},{"x":13.8928,"p":8.148e-05},{"x":13.985,"p":7.919e-05},{"x":14.0773,"p":7.697e-05},{"x":14.1696,"p":7.483e-05},{"x":14.2618,"p":7.276e-05},{"x":14.3541,"p":7.076e-05},{"x":14.4464,"p":6.882e-05},{"x":14.5387,"p":6.695e-05},{"x":14.6309,"p":6.514e-05},{"x":14.7232,"p":6.338e-05},{"x":14.8155,"p":6.168e-05},{"x":14.9077,"p":6.004e-05},{"x":15.0,"p":5.845e-05}],"gauss":[{"x":0.5,"p":0.3672120861},{"x":0.6043,"p":0.3399304011},{"x":0.7086,"p":0.3134623689},{"x":0.8129,"p":0.2879216597},{"x":0.9173,"p":0.2634081735},{"x":1.0216,"p":0.2400069783},{"x":1.1259,"p":0.2177876036},{"x":1.2302,"p":0.1968036915},{"x":1.3345,"p":0.1770929976},{"x":1.4388,"p":0.1586777228},{"x":1.5432,"p":0.1415651494},{"x":1.6475,"p":0.1257485441},{"x":1.7518,"p":0.1112082878},{"x":1.8561,"p":0.0979131857},{"x":1.9604,"p":0.0858219099},{"x":2.0647,"p":0.0748845273},{"x":2.1691,"p":0.0650440646},{"x":2.2734,"p":0.056238069},{"x":2.3777,"p":0.0484001236},{"x":2.482,"p":0.0414612841},{"x":2.5863,"p":0.0353514097},{"x":2.6906,"p":0.0300003654},{"x":2.795,"p":0.0253390804},{"x":2.8993,"p":0.0213004549},{"x":3.0036,"p":0.0178201095},{"x":3.1079,"p":0.0148369812},{"x":3.2122,"p":0.0122937704},{"x":3.3165,"p":0.0101372497},{"x":3.4209,"p":0.0083184465},{"x":3.5252,"p":0.0067927132},{"x":3.6295,"p":0.0055197016},{"x":3.7338,"p":0.0044632565},{"x":3.8381,"p":0.0035912447},{"x":3.9424,"p":0.0028753344},{"x":4.0468,"p":0.0022907386},{"x":4.1511,"p":0.0018159355},{"x":4.2554,"p":0.0014323764},{"x":4.3597,"p":0.0011241911},{"x":4.464,"p":0.0008778981},{"x":4.5683,"p":0.0006821248},{"x":4.6727,"p":0.0005273445},{"x":4.777,"p":0.0004056311},{"x":4.8813,"p":0.0003104344},{"x":4.9856,"p":0.0002363773},{"x":5.0899,"p":0.000179075},{"x":5.1942,"p":0.000134975},{"x":5.2986,"p":0.0001012179},{"x":5.4029,"p":7.55168e-05},{"x":5.5072,"p":5.60541e-05},{"x":5.6115,"p":4.13949e-05},{"x":5.7158,"p":3.04129e-05},{"x":5.8201,"p":2.22299e-05},{"x":5.9245,"p":1.61652e-05},{"x":6.0288,"p":1.16947e-05},{"x":6.1331,"p":8.417e-06},{"x":6.2374,"p":6.0267e-06},{"x":6.3417,"p":4.293e-06},{"x":6.446,"p":3.0423e-06},{"x":6.5504,"p":2.1448e-06},{"x":6.6547,"p":1.5042e-06},{"x":6.759,"p":1.0495e-06},{"x":6.8633,"p":7.284e-07},{"x":6.9676,"p":5.03e-07},{"x":7.0719,"p":3.455e-07},{"x":7.1763,"p":2.361e-07},{"x":7.2806,"p":1.605e-07},{"x":7.3849,"p":1.085e-07},{"x":7.4892,"p":7.3e-08},{"x":7.5935,"p":4.89e-08},{"x":7.6978,"p":3.25e-08},{"x":7.8022,"p":2.15e-08},{"x":7.9065,"p":1.42e-08},{"x":8.0108,"p":9.3e-09},{"x":8.1151,"p":6.1e-09},{"x":8.2194,"p":3.9e-09},{"x":8.3237,"p":2.5e-09},{"x":8.4281,"p":1.6e-09},{"x":8.5324,"p":1e-09},{"x":8.6367,"p":7e-10},{"x":8.741,"p":4e-10},{"x":8.8453,"p":3e-10},{"x":8.9496,"p":2e-10},{"x":9.054,"p":1e-10},{"x":9.1583,"p":1e-10},{"x":9.2626,"p":0.0},{"x":9.3669,"p":0.0},{"x":9.4712,"p":0.0},{"x":9.5755,"p":0.0},{"x":9.6799,"p":0.0},{"x":9.7842,"p":0.0},{"x":9.8885,"p":0.0},{"x":9.9928,"p":0.0},{"x":10.0971,"p":0.0},{"x":10.2014,"p":0.0},{"x":10.3058,"p":0.0},{"x":10.4101,"p":0.0},{"x":10.5144,"p":0.0},{"x":10.6187,"p":0.0},{"x":10.723,"p":0.0},{"x":10.8273,"p":0.0},{"x":10.9317,"p":0.0},{"x":11.036,"p":0.0},{"x":11.1403,"p":0.0},{"x":11.2446,"p":0.0},{"x":11.3489,"p":0.0},{"x":11.4532,"p":0.0},{"x":11.5576,"p":0.0},{"x":11.6619,"p":0.0},{"x":11.7662,"p":0.0},{"x":11.8705,"p":0.0},{"x":11.9748,"p":0.0},{"x":12.0791,"p":0.0},{"x":12.1835,"p":0.0},{"x":12.2878,"p":0.0},{"x":12.3921,"p":0.0},{"x":12.4964,"p":0.0},{"x":12.6007,"p":0.0},{"x":12.705,"p":0.0},{"x":12.8094,"p":0.0},{"x":12.9137,"p":0.0},{"x":13.018,"p":0.0},{"x":13.1223,"p":0.0},{"x":13.2266,"p":0.0},{"x":13.3309,"p":0.0},{"x":13.4353,"p":0.0},{"x":13.5396,"p":0.0},{"x":13.6439,"p":0.0},{"x":13.7482,"p":0.0},{"x":13.8525,"p":0.0},{"x":13.9568,"p":0.0},{"x":14.0612,"p":0.0},{"x":14.1655,"p":0.0},{"x":14.2698,"p":0.0},{"x":14.3741,"p":0.0},{"x":14.4784,"p":0.0},{"x":14.5827,"p":0.0},{"x":14.6871,"p":0.0},{"x":14.7914,"p":0.0},{"x":14.8957,"p":0.0},{"x":15.0,"p":0.0}],"true":[{"x":0.5,"p":0.3216649816},{"x":0.6043,"p":0.2891175459},{"x":0.7086,"p":0.2588331383},{"x":0.8129,"p":0.2309315085},{"x":0.9173,"p":0.2054523651},{"x":1.0216,"p":0.1823673284},{"x":1.1259,"p":0.1615938595},{"x":1.2302,"p":0.1430094645},{"x":1.3345,"p":0.1264649091},{"x":1.4388,"p":0.111795662},{"x":1.5432,"p":0.0988312048},{"x":1.6475,"p":0.0874021684},{"x":1.7518,"p":0.0773454659},{"x":1.8561,"p":0.0685077106},{"x":1.9604,"p":0.0607472461},{"x":2.0647,"p":0.0539351119},{"x":2.1691,"p":0.0479552319},{"x":2.2734,"p":0.0427040654},{"x":2.3777,"p":0.0380899116},{"x":2.482,"p":0.0340320126},{"x":2.5863,"p":0.0304595598},{"x":2.6906,"p":0.0273106769},{"x":2.795,"p":0.0245314301},{"x":2.8993,"p":0.022074894},{"x":3.0036,"p":0.0199002909},{"x":3.1079,"p":0.017972212},{"x":3.2122,"p":0.01625992},{"x":3.3165,"p":0.0147367327},{"x":3.4209,"p":0.0133794805},{"x":3.5252,"p":0.0121680333},{"x":3.6295,"p":0.0110848882},{"x":3.7338,"p":0.0101148132},{"x":3.8381,"p":0.0092445381},{"x":3.9424,"p":0.0084624887},{"x":4.0468,"p":0.007758557},{"x":4.1511,"p":0.0071239041},{"x":4.2554,"p":0.0065507899},{"x":4.3597,"p":0.0060324268},{"x":4.464,"p":0.0055628538},{"x":4.5683,"p":0.0051368277},{"x":4.6727,"p":0.0047497304},{"x":4.777,"p":0.0043974873},{"x":4.8813,"p":0.0040764986},{"x":4.9856,"p":0.0037835788},{"x":5.0899,"p":0.0035159046},{"x":5.1942,"p":0.0032709703},{"x":5.2986,"p":0.0030465484},{"x":5.4029,"p":0.002840656},{"x":5.5072,"p":0.0026515252},{"x":5.6115,"p":0.0024775777},{"x":5.7158,"p":0.002317402},{"x":5.8201,"p":0.0021697346},{"x":5.9245,"p":0.0020334425},{"x":6.0288,"p":0.0019075084},{"x":6.1331,"p":0.0017910177},{"x":6.2374,"p":0.001683147},{"x":6.3417,"p":0.0015831541},{"x":6.446,"p":0.0014903692},{"x":6.5504,"p":0.0014041867},{"x":6.6547,"p":0.0013240589},{"x":6.759,"p":0.0012494895},{"x":6.8633,"p":0.0011800284},{"x":6.9676,"p":0.0011152669},{"x":7.0719,"p":0.0010548333},{"x":7.1763,"p":0.0009983893},{"x":7.2806,"p":0.000945627},{"x":7.3849,"p":0.0008962651},{"x":7.4892,"p":0.0008500471},{"x":7.5935,"p":0.0008067383},{"x":7.6978,"p":0.000766124},{"x":7.8022,"p":0.0007280078},{"x":7.9065,"p":0.0006922093},{"x":8.0108,"p":0.0006585631},{"x":8.1151,"p":0.0006269173},{"x":8.2194,"p":0.0005971322},{"x":8.3237,"p":0.0005690793},{"x":8.4281,"p":0.0005426401},{"x":8.5324,"p":0.0005177055},{"x":8.6367,"p":0.0004941748},{"x":8.741,"p":0.000471955},{"x":8.8453,"p":0.0004509602},{"x":8.9496,"p":0.0004311108},{"x":9.054,"p":0.0004123332},{"x":9.1583,"p":0.0003945593},{"x":9.2626,"p":0.0003777259},{"x":9.3669,"p":0.0003617742},{"x":9.4712,"p":0.0003466499},{"x":9.5755,"p":0.0003323023},{"x":9.6799,"p":0.0003186844},{"x":9.7842,"p":0.0003057524},{"x":9.8885,"p":0.0002934656},{"x":9.9928,"p":0.0002817858},{"x":10.0971,"p":0.0002706778},{"x":10.2014,"p":0.0002601085},{"x":10.3058,"p":0.000250047},{"x":10.4101,"p":0.0002404645},{"x":10.5144,"p":0.000231334},{"x":10.6187,"p":0.0002226303},{"x":10.723,"p":0.0002143299},{"x":10.8273,"p":0.0002064107},{"x":10.9317,"p":0.0001988519},{"x":11.036,"p":0.0001916342},{"x":11.1403,"p":0.0001847393},{"x":11.2446,"p":0.0001781502},{"x":11.3489,"p":0.0001718508},{"x":11.4532,"p":0.000165826},{"x":11.5576,"p":0.0001600617},{"x":11.6619,"p":0.0001545446},{"x":11.7662,"p":0.000149262},{"x":11.8705,"p":0.0001442022},{"x":11.9748,"p":0.000139354},{"x":12.0791,"p":0.000134707},{"x":12.1835,"p":0.0001302512},{"x":12.2878,"p":0.0001259774},{"x":12.3921,"p":0.0001218768},{"x":12.4964,"p":0.0001179409},{"x":12.6007,"p":0.000114162},{"x":12.705,"p":0.0001105327},{"x":12.8094,"p":0.0001070458},{"x":12.9137,"p":0.0001036949},{"x":13.018,"p":0.0001004736},{"x":13.1223,"p":9.73759e-05},{"x":13.2266,"p":9.43962e-05},{"x":13.3309,"p":9.15293e-05},{"x":13.4353,"p":8.877e-05},{"x":13.5396,"p":8.61135e-05},{"x":13.6439,"p":8.35553e-05},{"x":13.7482,"p":8.10911e-05},{"x":13.8525,"p":7.87167e-05},{"x":13.9568,"p":7.64283e-05},{"x":14.0612,"p":7.42223e-05},{"x":14.1655,"p":7.20949e-05},{"x":14.2698,"p":7.00431e-05},{"x":14.3741,"p":6.80634e-05},{"x":14.4784,"p":6.6153e-05},{"x":14.5827,"p":6.4309e-05},{"x":14.6871,"p":6.25286e-05},{"x":14.7914,"p":6.08092e-05},{"x":14.8957,"p":5.91483e-05},{"x":15.0,"p":5.75435e-05}],"levels":[{"c":0.99,"evt":3.8899,"es":5.4415,"gauss":3.3238,"true":3.7469,"hist":3.8188},{"c":0.995,"evt":4.8145,"es":6.5942,"gauss":3.6784,"true":4.6041,"hist":4.7146},{"c":0.999,"evt":7.52,"es":9.9673,"gauss":4.4094,"true":7.1732,"hist":8.5065},{"c":0.9995,"evt":8.9784,"es":11.7855,"gauss":4.694,"true":8.6103,"hist":9.4034},{"c":0.9999,"evt":13.2457,"es":17.1056,"gauss":5.3029,"true":13.0337,"hist":11.1994}],"backtest":{"evt":{"method":"evt","confidence":0.99,"window":750,"n_forecasts":2250,"n_breaches":27,"breach_rate":0.012,"expected_breach_rate":0.01,"kupiec_statistic":0.85446,"kupiec_p_value":0.35529,"christoffersen_statistic":0.93617,"christoffersen_p_value":0.33326,"conditional_coverage_statistic":1.79063,"conditional_coverage_p_value":0.40848,"verdict":"Model passes conditional coverage at the 5% level."},"gaussian":{"method":"gaussian","confidence":0.99,"window":750,"n_forecasts":2250,"n_breaches":40,"breach_rate":0.01778,"expected_breach_rate":0.01,"kupiec_statistic":11.16698,"kupiec_p_value":0.00083,"christoffersen_statistic":0.10811,"christoffersen_p_value":0.74231,"conditional_coverage_statistic":11.27509,"conditional_coverage_p_value":0.00356,"verdict":"Breach frequency is off target; breaches are not clustered."},"historical":{"method":"historical","confidence":0.99,"window":750,"n_forecasts":2250,"n_breaches":25,"breach_rate":0.01111,"expected_breach_rate":0.01,"kupiec_statistic":0.27083,"kupiec_p_value":0.60277,"christoffersen_statistic":1.15962,"christoffersen_p_value":0.28154,"conditional_coverage_statistic":1.43045,"conditional_coverage_p_value":0.48908,"verdict":"Model passes conditional coverage at the 5% level."}},"scan":[{"quantile":0.85,"threshold":1.2104,"shape":0.1653,"scale":0.7938,"modified_scale":0.5937,"n_exceedances":750},{"quantile":0.875,"threshold":1.3543,"shape":0.1658,"scale":0.8189,"modified_scale":0.5943,"n_exceedances":625},{"quantile":0.9,"threshold":1.5424,"shape":0.168,"scale":0.8461,"modified_scale":0.587,"n_exceedances":500},{"quantile":0.925,"threshold":1.8077,"shape":0.1875,"scale":0.855,"modified_scale":0.5161,"n_exceedances":375},{"quantile":0.95,"threshold":2.1745,"shape":0.1979,"scale":0.9051,"modified_scale":0.4747,"n_exceedances":250},{"quantile":0.975,"threshold":2.8333,"shape":0.2682,"scale":0.953,"modified_scale":0.1932,"n_exceedances":125},{"quantile":0.99,"threshold":3.8188,"shape":0.2333,"scale":1.2699,"modified_scale":0.3791,"n_exceedances":50}],"sample":{"n":5000,"df":4,"mean":0.0179,"sd":1.4211,"max":11.6398}};
+
+/* ---------------- chart ---------------- */
+const svg = document.getElementById('tailchart');
+const W = 720, H = 400, M = {t:16, r:22, b:44, l:56};
+const X0 = 0.4, X1 = 15, P0 = 1e-5, P1 = 1;
+const px = v => M.l + (v - X0) / (X1 - X0) * (W - M.l - M.r);
+const py = p => M.t + (Math.log10(P1) - Math.log10(p)) / (Math.log10(P1) - Math.log10(P0)) * (H - M.t - M.b);
+const ns = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs, parent){
+  const n = document.createElementNS(ns, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  (parent || svg).appendChild(n);
+  return n;
+}
+function path(points, cls){
+  const d = points.filter(pt => pt.p >= P0 && pt.p <= P1 && pt.x <= X1)
+    .map((pt, i) => (i ? 'L' : 'M') + px(pt.x).toFixed(1) + ' ' + py(pt.p).toFixed(1)).join(' ');
+  return el('path', {d, class:cls});
+}
+
+for (let k = 0; k >= -5; k--){
+  const p = Math.pow(10, k), y = py(p);
+  el('line', {x1:M.l, x2:W-M.r, y1:y, y2:y, class:'grid-line'});
+  el('text', {x:M.l-9, y:y+3.5, class:'axis-text', 'text-anchor':'end'})
+    .textContent = k === 0 ? '1' : '10' + String(k).replace('-','\u207B').replace(/[0-9]/g, d => '\u2070\u00B9\u00B2\u00B3\u2074\u2075\u2076\u2077\u2078\u2079'[+d]);
+}
+for (let v = 0; v <= 15; v += 3){
+  if (v < X0) continue;
+  el('line', {x1:px(v), x2:px(v), y1:M.t, y2:H-M.b, class:'grid-line'});
+  el('text', {x:px(v), y:H-M.b+18, class:'axis-text', 'text-anchor':'middle'}).textContent = v;
+}
+el('text', {x:(M.l+W-M.r)/2, y:H-6, class:'axis-title', 'text-anchor':'middle'}).textContent = 'loss';
+el('text', {x:14, y:(M.t+H-M.b)/2, class:'axis-title', 'text-anchor':'middle',
+  transform:`rotate(-90 14 ${(M.t+H-M.b)/2})`}).textContent = 'probability of exceeding';
+
+const u = DATA.fit.threshold;
+el('line', {x1:px(u), x2:px(u), y1:M.t, y2:H-M.b, class:'thresh-line'});
+el('text', {x:px(u)+6, y:M.t+12, class:'thresh-label'}).textContent = 'threshold u = ' + u.toFixed(2);
+
+DATA.emp.forEach(pt => {
+  if (pt.x > X0 && pt.p >= P0) el('circle', {cx:px(pt.x), cy:py(pt.p), r:2.4, class:'series-emp'});
+});
+path(DATA.true, 'series-true');
+const gaussPath = path(DATA.gauss, 'series-gauss');
+const gpdPath = path(DATA.gpd, 'series-gpd');
+
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches){
+  [gpdPath, gaussPath].forEach(p => {
+    const len = p.getTotalLength();
+    p.style.setProperty('--len', len);
+    p.classList.add('draw');
+  });
+  svg.querySelectorAll('circle').forEach(c => c.classList.add('fade'));
+}
+
+const mLine = el('line', {class:'marker-line', x1:M.l, x2:W-M.r, y1:0, y2:0});
+const mEvt = el('line', {class:'marker-stem', stroke:'#DCA847', x1:0, x2:0, y1:0, y2:0});
+const mGauss = el('line', {class:'marker-stem', stroke:'#8DA0A6', x1:0, x2:0, y1:0, y2:0});
+const dotEvt = el('circle', {r:4.5, fill:'#DCA847'});
+const dotGauss = el('circle', {r:4.5, fill:'#8DA0A6'});
+
+/* ---------------- interaction ---------------- */
+const {shape:xi, scale:sig, exceedance_rate:zeta} = DATA.fit;
+const {mean:mu, sd} = DATA.sample;
+
+const evtQuantile = p => Math.abs(xi) < 1e-8
+  ? u + sig * Math.log(zeta / p)
+  : u + (sig / xi) * (Math.pow(zeta / p, xi) - 1);
+
+/* Acklam-style rational approximation to the normal quantile; adequate for a chart marker. */
+function normQuantile(q){
+  const a=[-39.69683028665376,220.9460984245205,-275.9285104469687,138.3577518672690,-30.66479806614716,2.506628277459239];
+  const b=[-54.47609879822406,161.5858368580409,-155.6989798598866,66.80131188771972,-13.28068155288572];
+  const c=[-0.007784894002430293,-0.3223964580411365,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783];
+  const d=[0.007784695709041462,0.3224671290700398,2.445134137142996,3.754408661907416];
+  const pl=0.02425; let x;
+  if (q < pl){ const s=Math.sqrt(-2*Math.log(q));
+    x=(((((c[0]*s+c[1])*s+c[2])*s+c[3])*s+c[4])*s+c[5])/((((d[0]*s+d[1])*s+d[2])*s+d[3])*s+1);
+  } else if (q <= 1-pl){ const s=q-0.5, r=s*s;
+    x=(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*s/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+  } else { const s=Math.sqrt(-2*Math.log(1-q));
+    x=-(((((c[0]*s+c[1])*s+c[2])*s+c[3])*s+c[4])*s+c[5])/((((d[0]*s+d[1])*s+d[2])*s+d[3])*s+1); }
+  return x;
+}
+
+const slider = document.getElementById('conf');
+const fmtConf = p => {
+  const c = (1 - p) * 100;
+  return (c >= 99.99 ? c.toFixed(3) : c >= 99.9 ? c.toFixed(2) : c.toFixed(1)) + '%';
+};
+
+function update(){
+  const t = slider.value / 100;
+  const p = Math.pow(10, -2 + t * -2);            // exceedance probability, 1e-2 → 1e-4
+  const evt = evtQuantile(p);
+  const gauss = mu + sd * normQuantile(1 - p);
+
+  document.getElementById('conf-label').textContent = fmtConf(p);
+  document.getElementById('r-evt').textContent = evt.toFixed(2);
+  document.getElementById('r-gauss').textContent = gauss.toFixed(2);
+  document.getElementById('r-gap').textContent = Math.round((1 - gauss / evt) * 100) + '%';
+
+  const y = py(p);
+  mLine.setAttribute('y1', y); mLine.setAttribute('y2', y);
+  [[mEvt, dotEvt, evt], [mGauss, dotGauss, gauss]].forEach(([stem, dot, v]) => {
+    stem.setAttribute('x1', px(v)); stem.setAttribute('x2', px(v));
+    stem.setAttribute('y1', y); stem.setAttribute('y2', H - M.b);
+    dot.setAttribute('cx', px(v)); dot.setAttribute('cy', y);
+  });
+}
+slider.addEventListener('input', update);
+update();
+
+/* ---------------- code blocks ---------------- */
+const paint = s => s
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/^(\s*[▸].*)$/gm, '<span class="call">$1</span>')
+  .replace(/^(\s*#.*)$/gm, '<span class="cmt">$1</span>')
+  .replace(/"([^"]+)":/g, '<span class="key">"$1"</span>:')
+  .replace(/: (-?[\d.]+(?:e-?\d+)?)/g, ': <span class="num">$1</span>')
+  .replace(/: ("(?!<)[^"]*")/g, ': <span class="str">$1</span>');
+
+const f = DATA.fit;
+document.getElementById('inline-shape').textContent = 'ξ = ' + f.shape.toFixed(3);
+document.getElementById('sample-max').textContent = DATA.sample.max.toFixed(2);
+
+document.getElementById('code-scan').innerHTML = paint(
+`▸ tailrisk_threshold_stability(values, quantiles: [0.85 … 0.99])
+
+  quantile   threshold   shape    scale   n_exceedances
+` + DATA.scan.map(r =>
+`  ${r.quantile.toFixed(3).padStart(8)}   ${r.threshold.toFixed(3).padStart(9)}` +
+`   ${r.shape.toFixed(3).padStart(6)}   ${r.scale.toFixed(3).padStart(6)}   ${String(r.n_exceedances).padStart(13)}`
+).join('\n') + `
+
+  "shape_range": { "spread": ${(Math.max(...DATA.scan.map(r=>r.shape)) - Math.min(...DATA.scan.map(r=>r.shape))).toFixed(3)} }
+  "stability": "Shape is stable across thresholds; the fit is defensible."`);
+
+document.getElementById('code-fit').innerHTML = paint(
+`▸ tailrisk_fit_gpd(values, threshold_quantile: 0.95)
+
+{
+  "threshold": ${f.threshold.toFixed(4)},
+  "shape": ${f.shape.toFixed(4)},
+  "scale": ${f.scale.toFixed(4)},
+  "n_observations": ${f.n_observations},
+  "n_exceedances": ${f.n_exceedances},
+  "exceedance_rate": ${f.exceedance_rate},
+  "interpretation": "Heavy tail: extremes are unbounded and a Gaussian
+                     model will understate them."
+}`);
+
+const L = DATA.levels.find(r => r.c === 0.999);
+document.getElementById('code-var').innerHTML = paint(
+`▸ tailrisk_var_es(values, confidence: 0.999)
+
+{
+  "evt":        { "var": ${L.evt}, "es": ${L.es}, "shape": ${f.shape.toFixed(4)} },
+  "historical": { "var": ${L.hist}, "es": 10.0226 },
+  "gaussian":   { "var": ${L.gauss} },
+  "evt_vs_gaussian_ratio": ${(L.evt / L.gauss).toFixed(4)}
+}
+
+# true value for this distribution: ${L.true}`);
+
+const be = DATA.backtest.evt, bg = DATA.backtest.gaussian;
+document.getElementById('code-bt').innerHTML = paint(
+`▸ tailrisk_backtest_var(values, confidence: 0.99, window: 750, method: "evt")
+
+{
+  "n_forecasts": ${be.n_forecasts},
+  "n_breaches": ${be.n_breaches},
+  "breach_rate": ${be.breach_rate},
+  "expected_breach_rate": ${be.expected_breach_rate},
+  "kupiec_p_value": ${be.kupiec_p_value.toFixed(4)},
+  "christoffersen_p_value": ${be.christoffersen_p_value.toFixed(4)},
+  "verdict": "${be.verdict}"
+}
+
+# the same series, method: "gaussian" → ${bg.n_breaches} breaches, kupiec_p ${bg.kupiec_p_value.toFixed(4)}
+# "${bg.verdict}"`);
+
+/* ---------------- tables ---------------- */
+const err = (v, t) => ((v - t) / t * 100);
+const sign = v => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+document.querySelector('#levels-table tbody').innerHTML = DATA.levels.map(r => `
+  <tr>
+    <td>${fmtConf(1 - r.c)}</td>
+    <td>${r.true.toFixed(2)}</td>
+    <td class="evt">${r.evt.toFixed(2)}</td>
+    <td class="evt">${sign(err(r.evt, r.true))}</td>
+    <td class="off">${r.hist == null ? '—' : r.hist.toFixed(2)}</td>
+    <td class="off">${r.gauss.toFixed(2)}</td>
+    <td class="off">${sign(err(r.gauss, r.true))}</td>
+    <td>${r.es.toFixed(2)}</td>
+  </tr>`).join('');
+
+const names = {evt:'Extreme value', historical:'Historical', gaussian:'Gaussian'};
+document.querySelector('#bt-table tbody').innerHTML = ['evt','historical','gaussian'].map(k => {
+  const b = DATA.backtest[k], ok = b.conditional_coverage_p_value >= 0.05;
+  return `<tr>
+    <td>${names[k]}</td>
+    <td>${b.n_breaches}</td>
+    <td>${(b.breach_rate * 100).toFixed(2)}%</td>
+    <td>${b.kupiec_p_value.toFixed(4)}</td>
+    <td>${b.christoffersen_p_value.toFixed(4)}</td>
+    <td class="${ok ? 'pass' : 'fail'}" style="text-align:left; white-space:normal">${b.verdict}</td>
+  </tr>`;
+}).join('');
+
+/* ---------------- copy buttons ---------------- */
+document.querySelectorAll('button.copy').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const block = btn.closest('.pre-head').nextElementSibling;
+    try {
+      await navigator.clipboard.writeText(block.innerText);
+      btn.textContent = 'copied';
+    } catch { btn.textContent = 'select and copy'; }
+    setTimeout(() => { btn.textContent = 'copy'; }, 1800);
+  });
+});
+</script>
+</body>
+</html>
