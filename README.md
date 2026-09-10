@@ -29,8 +29,8 @@ All tools are read-only and side-effect free.
 ## Install
 
 ```bash
-git clone https://github.com/John-Amal/tailrisk-mcp.git
-cd tailrisk-mcp
+git clone https://github.com/John-Amal/Tail-Risk-Toolkit.git
+cd Tail-Risk-Toolkit.git
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
@@ -46,7 +46,7 @@ Add to your client's server configuration (for Claude Desktop, `claude_desktop_c
 {
   "mcpServers": {
     "tailrisk": {
-      "command": "/absolute/path/to/tailrisk-mcp/.venv/bin/python",
+      "command": "/absolute/path/to/Tail-Risk-Toolkit.git/.venv/bin/python",
       "args": ["-m", "tailrisk_mcp.server"]
     }
   }
